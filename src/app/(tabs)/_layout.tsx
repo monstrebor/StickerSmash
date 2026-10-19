@@ -19,7 +19,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          headerTitle: "Sticker Smash", 
+          headerTitle: "Home", 
           tabBarIcon: ({focused, color}) => 
           (<Ionicons 
             name={focused ? "home-sharp" : "home-outline"}
@@ -34,7 +34,7 @@ export default function TabsLayout() {
           headerTitle: "About", 
           tabBarIcon: ({focused, color}) => 
           (<Ionicons 
-            name={focused ? "information-circle" : "information-circle"}
+            name={focused ? "information-circle" : "information-circle-outline"}
             color={color}
             size={24} />
           ),
