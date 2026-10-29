@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Platform, View, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Platform, View, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { captureRef } from 'react-native-view-shot';
 import type { ImageSource } from 'expo-image';
 
 import Button from '@/components/button';
@@ -15,28 +16,71 @@ import EmojiSticker from '@/components/emoji-sticker';
 const PlaceholderImage = require('@/assets/images/background-image.png');
 
 export default function Index() {
-  const [selectedImage, setSelectedImage] = useState<string | undefined>(undefined);
-  const [showAppOptions, setShowAppOptions] = useState<boolean>(false);
-  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
-  const [pickedEmoji, setPickedEmoji] = useState<ImageSource | undefined>(undefined);
+  const [selectedImage, setSelectedImage] = useState<string | undefined>(
+    undefined
+  );
+  const [showAppOptions, setShowAppOptions] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [pickedEmoji, setPickedEmoji] = useState<ImageSource | undefined>(
+    undefined
+  );
+
+  const imageRef = useRef<ComponentRef<typeof View>>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    let cancelled = false;
+
+    const requestMediaPermission = async () => {
+      try {
+        const MediaLibrary = await import('expo-media-library');
+        const permission = await MediaLibrary.getPermissionsAsync({
+          writeOnly: true,
+        });
+
+        if (!cancelled && !permission.granted) {
+          await MediaLibrary.requestPermissionsAsync({
+            writeOnly: true,
+          });
+        }
+      } catch (error) {
+        console.error('Media permission error:', error);
+      }
+    };
+
+    requestMediaPermission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pickImageAsync = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 1,
-    });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 1,
+      });
 
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
-      setShowAppOptions(true);
-    } else {
-      alert('You did not select any image.');
+      if (!result.canceled) {
+        setSelectedImage(result.assets[0].uri);
+        setPickedEmoji(undefined);
+        setShowAppOptions(true);
+      } else {
+        Alert.alert('No image selected', 'Please select an image.');
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Unable to open the image picker.');
     }
   };
 
   const onReset = () => {
     setShowAppOptions(false);
+    setSelectedImage(undefined);
+    setPickedEmoji(undefined);
   };
 
   const onAddSticker = () => {
@@ -48,15 +92,63 @@ export default function Index() {
   };
 
   const onSaveImageAsync = async () => {
-    // we will implement this later
+    try {
+      if (!imageRef.current) {
+        throw new Error('The image container is not available.');
+      }
+
+      if (Platform.OS === 'web') {
+        const dataUrl = await captureRef(imageRef.current, {
+          format: 'jpg',
+          quality: 0.95,
+          result: 'data-uri',
+        });
+
+        const link = document.createElement('a');
+        link.download = 'sticker-smash.jpeg';
+        link.href = dataUrl;
+        link.click();
+
+        return;
+      }
+
+      const localUri = await captureRef(imageRef.current, {
+        format: 'jpg',
+        quality: 1,
+      });
+
+      const MediaLibrary = await import('expo-media-library');
+
+      await MediaLibrary.saveToLibraryAsync(localUri);
+
+      Alert.alert('Saved', 'Your image was saved successfully.');
+    } catch (error) {
+      console.error('Save image error:', error);
+      Alert.alert(
+        'Save failed',
+        'Unable to save your image. Please check the console for details.'
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.imageContainer}>
-        <ImageViewer imgSource={PlaceholderImage} selectedImage={selectedImage} />
-        {pickedEmoji && <EmojiSticker imageSize={40} stickerSource={pickedEmoji} />}
+        <View ref={imageRef} collapsable={false}>
+          <ImageViewer
+            imgSource={PlaceholderImage}
+            selectedImage={selectedImage}
+          />
+
+          {pickedEmoji && (
+            <EmojiSticker
+              imageSize={40}
+              stickerSource={pickedEmoji}
+            />
+          )}
+        </View>
       </View>
+
       {showAppOptions ? (
         <View style={styles.footerContainer}>
           <View style={styles.optionsRow}>
@@ -69,7 +161,9 @@ export default function Index() {
               label="Reset"
               onPress={onReset}
             />
+
             <CircleButton onPress={onAddSticker} />
+
             <IconButton
               icon={{
                 android: require('@expo/material-symbols/download.xml'),
@@ -83,12 +177,24 @@ export default function Index() {
         </View>
       ) : (
         <View style={styles.footerContainer}>
-          <Button theme="primary" label="Choose a photo" onPress={pickImageAsync} />
-          <Button label="Use this photo" onPress={() => setShowAppOptions(true)} />
+          <Button
+            theme="primary"
+            label="Choose a photo"
+            onPress={pickImageAsync}
+          />
+
+          <Button
+            label="Use this photo"
+            onPress={() => setShowAppOptions(true)}
+          />
         </View>
       )}
+
       <EmojiPicker isVisible={isModalVisible} onClose={onModalClose}>
-        <EmojiList onSelect={setPickedEmoji} onCloseModal={onModalClose} />
+        <EmojiList
+          onSelect={setPickedEmoji}
+          onCloseModal={onModalClose}
+        />
       </EmojiPicker>
     </SafeAreaView>
   );
