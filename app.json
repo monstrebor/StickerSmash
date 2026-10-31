@@ -26,11 +26,15 @@
     "plugins": [
       "expo-router",
       [
-        "expo-splash-screen",
+ "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#232323",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
+            "backgroundColor": "#000000"
+          },
+          "imageWidth": 200
         }
       ]
     ],
